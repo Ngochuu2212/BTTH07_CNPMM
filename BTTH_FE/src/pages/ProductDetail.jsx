@@ -7,11 +7,9 @@ import { reviewAPI, wishlistAPI } from '~/apis/index'
 import { getProductImage } from '~/utils/shoeImages'
 import { setCartCount } from '~/redux/cartSlice'
 
-// ─── HELPERS ────────────────────────────────────────────────────────────────
 const formatPrice = (price) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price)
 const discountPercent = (orig, sale) => Math.round(((orig - sale) / orig) * 100)
 
-// ─── SWIPER — POOL ẢNH GÓC NHÌN KHÁC NHAU ──────────────────────────────────
 const ANGLE_POOL = [
   'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&q=80',
   'https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=600&q=80',

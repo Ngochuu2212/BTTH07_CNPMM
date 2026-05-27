@@ -6,9 +6,7 @@ import { toast } from 'react-toastify'
 import { getProductImage } from '~/utils/shoeImages'
 import { productAPI } from '~/apis/index'
 
-// ─── DỮ LIỆU (đồng bộ với HomePage & ProductDetail) ─────────────────────────
 const ALL_PRODUCTS = [
-  // ── RUNNING ──────────────────────────────────────────────────────────────
   {
     id: 1, name: 'Nike Air Max 270', brand: 'Nike', price: 3200000, originalPrice: 4200000,
     rating: 4.8, reviews: 128, sold: 1240, stock: 35,

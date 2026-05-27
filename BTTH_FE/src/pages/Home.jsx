@@ -7,7 +7,6 @@ import { toast } from 'react-toastify'
 
 const API_ROOT = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
 
-// ── Validate từng trường ──────────────────────────────────────────────────────
 const validateField = (name, value, formData) => {
   switch (name) {
     case 'full_name':
