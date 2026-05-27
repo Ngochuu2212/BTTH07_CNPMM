@@ -4,7 +4,7 @@ import { clearUser } from '~/redux/userSlice'
 import { setCartCount } from '~/redux/cartSlice'
 import { toast } from 'react-toastify'
 import { useNavigate, Link } from 'react-router-dom'
-import { productAPI, cartAPI } from '~/apis/index'
+import { productAPI, cartAPI, wishlistAPI } from '~/apis/index'
 import HorizontalCarousel from '~/components/HorizontalCarousel'
 import { getProductImage, SHOE_IMAGES, DEFAULT_SHOE_IMG } from '~/utils/shoeImages'
 
@@ -28,9 +28,29 @@ const formatPrice = (price) => new Intl.NumberFormat('vi-VN', { style: 'currency
 const discountPercent = (original, sale) => Math.round(((original - sale) / original) * 100)
 
 // ─── PRODUCT CARD COMPONENT ──────────────────────────────────────────
-const ProductCard = ({ product, onAddToCart }) => {
-  const [wishlist, setWishlist] = useState(false)
+const ProductCard = ({ product, onAddToCart, initialWishlisted = false }) => {
+  const [wishlisted, setWishlisted] = useState(initialWishlisted)
+  const [wishlistLoading, setWishlistLoading] = useState(false)
   const navigate = useNavigate()
+  const userInfo = useSelector(s => s.user.userInfo)
+
+  // Sync lại khi dữ liệu wishlist từ server về
+  useEffect(() => { setWishlisted(initialWishlisted) }, [initialWishlisted])
+
+  const handleWishlistToggle = async (e) => {
+    e.stopPropagation()
+    if (!userInfo) { toast.warning('Vui lòng đăng nhập để lưu yêu thích!'); return }
+    setWishlistLoading(true)
+    try {
+      const res = await wishlistAPI.toggleWishlistAPI(product.id)
+      setWishlisted(res.wishlisted)
+      toast(res.wishlisted ? '❤️ Đã thêm vào yêu thích!' : '💔 Đã xóa khỏi yêu thích', { autoClose: 1500 })
+    } catch {
+      toast.error('Có lỗi xảy ra!')
+    } finally {
+      setWishlistLoading(false)
+    }
+  }
 
   const handleAdd = (e) => {
     e.stopPropagation()
@@ -65,10 +85,11 @@ const ProductCard = ({ product, onAddToCart }) => {
         </div>
         {/* Wishlist button */}
         <button
-          onClick={(e) => { e.stopPropagation(); setWishlist(!wishlist); toast(wishlist ? 'Đã xoá khỏi yêu thích' : '❤️ Đã thêm vào yêu thích', { autoClose: 1500 }) }}
-          className="absolute top-3 right-3 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow hover:scale-110 transition z-10"
+          onClick={handleWishlistToggle}
+          disabled={wishlistLoading}
+          className="absolute top-3 right-3 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow hover:scale-110 transition z-10 disabled:opacity-60"
         >
-          <span className="text-lg">{wishlist ? '❤️' : '🤍'}</span>
+          <span className="text-lg">{wishlisted ? '❤️' : '🤍'}</span>
         </button>
         {/* Shoe image - dùng image_url từ DB */}
         <img
@@ -179,6 +200,7 @@ const HomePage = () => {
   const [topSellers, setTopSellers] = useState([])
   const [mostViewed, setMostViewed] = useState([])
   const [rankLoading, setRankLoading] = useState(true)
+  const [wishlistIds, setWishlistIds] = useState(new Set())
 
   // Fetch cart count khi vào trang
   useEffect(() => {
@@ -186,6 +208,17 @@ const HomePage = () => {
       .then(res => dispatch(setCartCount(res.data?.totalCount || 0)))
       .catch(() => {})
   }, [dispatch])
+
+  // Fetch wishlist IDs khi user đăng nhập
+  useEffect(() => {
+    if (!userInfo) { setWishlistIds(new Set()); return }
+    wishlistAPI.getMyWishlistAPI()
+      .then(res => {
+        const ids = new Set((res?.data || []).map(item => item.id))
+        setWishlistIds(ids)
+      })
+      .catch(() => {})
+  }, [userInfo])
 
   // Fetch sản phẩm + danh mục từ API
   useEffect(() => {
@@ -353,12 +386,12 @@ const HomePage = () => {
                 >
                   <span>📦</span> Đơn hàng của tôi
                 </Link>
-                <button
-                  onClick={() => toast.info('Chức năng đang phát triển!')}
+                <Link
+                  to="/user/profile?tab=wishlist"
                   className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-sm text-gray-700"
                 >
                   <span>❤️</span> Yêu thích
-                </button>
+                </Link>
                 <hr className="my-1 border-gray-100" />
                 <button
                   onClick={handleLogout}
@@ -488,7 +521,7 @@ const HomePage = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {flashSaleProducts.map(p => <ProductCard key={p.id} product={p} isFlashSale onAddToCart={handleAddToCart} />)}
+            {flashSaleProducts.map(p => <ProductCard key={p.id} product={p} isFlashSale onAddToCart={handleAddToCart} initialWishlisted={wishlistIds.has(p.id)} />)}
           </div>
         </section>
 
@@ -524,7 +557,7 @@ const HomePage = () => {
             ))}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mt-6">
-            {pagedFilteredProducts.map(p => <ProductCard key={p.id} product={p} onAddToCart={handleAddToCart} />)}
+            {pagedFilteredProducts.map(p => <ProductCard key={p.id} product={p} onAddToCart={handleAddToCart} initialWishlisted={wishlistIds.has(p.id)} />)}
           </div>
 
           {/* ── PHÂN TRANG DANH MỤC ────────────────────────────────── */}
@@ -585,7 +618,7 @@ const HomePage = () => {
             <button className="text-sm font-semibold text-blue-600 hover:underline">Xem tất cả →</button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {newArrivals.map(p => <ProductCard key={p.id} product={p} onAddToCart={handleAddToCart} />)}
+            {newArrivals.map(p => <ProductCard key={p.id} product={p} onAddToCart={handleAddToCart} initialWishlisted={wishlistIds.has(p.id)} />)}
           </div>
         </section>
 

@@ -194,11 +194,18 @@ const cancelOrderAPI = async (id, reason = '') => {
   return response.data
 }
 
+/** [Admin] Cập nhật trạng thái đơn hàng */
+const adminUpdateOrderStatusAPI = async (id, status) => {
+  const response = await authorizedAxiosInstance.patch(`${API_ROOT}/api/orders/${id}/status`, { status })
+  return response.data
+}
+
 export const orderAPI = {
   createOrderAPI,
   getMyOrdersAPI,
   getOrderByIdAPI,
-  cancelOrderAPI
+  cancelOrderAPI,
+  adminUpdateOrderStatusAPI
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -241,4 +248,35 @@ export const reviewAPI = {
   getMyPointsAPI,
   getProductReviewsAPI,
   usePointsAPI
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WISHLIST API
+// ═══════════════════════════════════════════════════════════════════════════
+
+const getMyWishlistAPI = async () => {
+  const response = await authorizedAxiosInstance.get(`${API_ROOT}/api/wishlist`)
+  return response.data
+}
+
+const toggleWishlistAPI = async (productId) => {
+  const response = await authorizedAxiosInstance.post(`${API_ROOT}/api/wishlist/${productId}`)
+  return response.data
+}
+
+const checkWishlistAPI = async (productId) => {
+  const response = await authorizedAxiosInstance.get(`${API_ROOT}/api/wishlist/check/${productId}`)
+  return response.data
+}
+
+const getViewHistoryAPI = async () => {
+  const response = await authorizedAxiosInstance.get(`${API_ROOT}/api/wishlist/history`)
+  return response.data
+}
+
+export const wishlistAPI = {
+  getMyWishlistAPI,
+  toggleWishlistAPI,
+  checkWishlistAPI,
+  getViewHistoryAPI
 }

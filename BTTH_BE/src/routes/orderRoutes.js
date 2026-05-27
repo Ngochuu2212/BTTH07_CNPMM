@@ -5,7 +5,8 @@ const {
   getMyOrders,
   getOrderById,
   createOrder,
-  cancelOrder
+  cancelOrder,
+  adminUpdateOrderStatus
 } = require('../controllers/orderController')
 
 router.use(protect)
@@ -14,5 +15,6 @@ router.get('/', getMyOrders)
 router.get('/:id', getOrderById)
 router.post('/', createOrder)
 router.patch('/:id/cancel', cancelOrder)
+router.patch('/:id/status', adminUpdateOrderStatus)
 
 module.exports = router

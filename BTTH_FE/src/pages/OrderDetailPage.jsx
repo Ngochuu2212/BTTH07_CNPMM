@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useSelector } from 'react-redux'
 import { toast } from 'react-toastify'
 import { orderAPI, reviewAPI } from '~/apis/index'
 import StatusBadge from '~/components/StatusBadge'
@@ -52,9 +53,12 @@ const fmtDate = (d) => new Date(d).toLocaleString('vi-VN')
 const OrderDetailPage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
+  const userInfo = useSelector(s => s.user.userInfo)
+  const isAdmin = userInfo?.role === 'admin'
   const [order, setOrder] = useState(null)
   const [eligibility, setEligibility] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [updatingStatus, setUpdatingStatus] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [reason, setReason] = useState('')
   const [cancelling, setCancelling] = useState(false)
@@ -113,6 +117,29 @@ const OrderDetailPage = () => {
     return () => clearInterval(timerRef.current)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order?.id, eligibility?.canCancel])
+
+  // Bước chuyển trạng thái tiếp theo
+  const NEXT_STATUS = { pending: 'confirmed', confirmed: 'preparing', preparing: 'shipping', shipping: 'delivered' }
+  const NEXT_LABEL  = { pending: '✅ Xác nhận', confirmed: '🔧 Chuẩn bị', preparing: '🚚 Giao hàng', shipping: '🎉 Đã giao' }
+
+  const handleAdminUpdateStatus = async (nextStatus) => {
+    setUpdatingStatus(true)
+    try {
+      const res = await orderAPI.adminUpdateOrderStatusAPI(id, nextStatus)
+      toast.success(res.message || 'Cập nhật trạng thái thành công')
+      setOrder(prev => ({ ...prev, status: nextStatus }))
+      // Sau khi delivered, load lại review status
+      if (nextStatus === 'delivered') {
+        reviewAPI.getOrderReviewStatusAPI(id)
+          .then(r => { setReviewedIds(r.reviewed_product_ids || []); setTotalPoints(r.total_points || 0) })
+          .catch(() => {})
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Lỗi cập nhật trạng thái')
+    } finally {
+      setUpdatingStatus(false)
+    }
+  }
 
   const handleCancel = () => {
     setCancelling(true)
@@ -319,6 +346,16 @@ const OrderDetailPage = () => {
           )}
           {!eligibility?.canCancel && eligibility?.reason && (
             <p className="text-xs text-gray-400 bg-gray-50 px-4 py-2 rounded-2xl">{eligibility.reason}</p>
+          )}
+          {/* Admin: nút chuyển trạng thái tiếp theo */}
+          {isAdmin && NEXT_STATUS[order.status] && (
+            <button
+              onClick={() => handleAdminUpdateStatus(NEXT_STATUS[order.status])}
+              disabled={updatingStatus}
+              className="px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm disabled:opacity-50 flex items-center gap-2"
+            >
+              {updatingStatus ? '⏳ Đang cập nhật...' : `${NEXT_LABEL[order.status]} →`}
+            </button>
           )}
         </div>
 

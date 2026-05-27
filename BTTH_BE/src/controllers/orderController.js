@@ -219,7 +219,43 @@ exports.createOrder = async (req, res) => {
   }
 }
 
-// ─── CANCEL ORDER ─────────────────────────────────────────────────────────────
+// ─── ADMIN: Cập nhật trạng thái đơn hàng + tự động +1 sold khi delivered ─────────
+exports.adminUpdateOrderStatus = async (req, res) => {
+  const { id } = req.params
+  const { status } = req.body
+  const allowedStatuses = ['confirmed', 'preparing', 'shipping', 'delivered', 'cancelled']
+
+  if (!allowedStatuses.includes(status)) {
+    return res.status(400).json({ message: 'Trạng thái không hợp lệ' })
+  }
+
+  try {
+    const [[order]] = await pool.query('SELECT * FROM orders WHERE id = ?', [id])
+    if (!order) return res.status(404).json({ message: 'Không tìm thấy đơn hàng' })
+
+    await pool.query('UPDATE orders SET status = ? WHERE id = ?', [status, id])
+
+    // +1 sold cho từng sản phẩm trong đơn khi chuyển sang delivered
+    if (status === 'delivered' && order.status !== 'delivered') {
+      const [items] = await pool.query(
+        'SELECT product_id, quantity FROM order_items WHERE order_id = ?', [id]
+      )
+      for (const item of items) {
+        await pool.query(
+          'UPDATE products SET sold = sold + ? WHERE id = ?',
+          [item.quantity, item.product_id]
+        )
+      }
+    }
+
+    res.json({ message: 'Cập nhật trạng thái thành công', status })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ message: 'Lỗi server' })
+  }
+}
+
+// ─── CANCEL ORDER ──────────────────────────────────────────────────────────────
 exports.cancelOrder = async (req, res) => {
   const userId = req.user.id
   const { id } = req.params

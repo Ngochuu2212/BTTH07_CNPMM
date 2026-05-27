@@ -143,9 +143,27 @@ const getProductById = async (req, res) => {
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy sản phẩm' })
     }
+
+    // Đếm số lượng bình luận thực tế từ bảng reviews
+    const [[reviewRow]] = await pool.query(
+      'SELECT COUNT(*) AS review_count, ROUND(AVG(rating), 1) AS avg_rating FROM reviews WHERE product_id = ?', [id]
+    )
+
+    // Kiểm tra wishlist
+    let is_wishlisted = false
+    if (req.user) {
+      const [wRows] = await pool.query(
+        'SELECT id FROM wishlists WHERE user_id = ? AND product_id = ?', [req.user.id, id]
+      )
+      is_wishlisted = wRows.length > 0
+    }
+
     const product = {
       ...rows[0],
-      tags: typeof rows[0].tags === 'string' ? JSON.parse(rows[0].tags) : rows[0].tags
+      tags: typeof rows[0].tags === 'string' ? JSON.parse(rows[0].tags) : rows[0].tags,
+      review_count: reviewRow.review_count || 0,
+      avg_rating: reviewRow.avg_rating || 0,
+      is_wishlisted
     }
     return res.json({ success: true, data: product })
   } catch (err) {
@@ -162,6 +180,14 @@ const incrementView = async (req, res) => {
   try {
     const { id } = req.params
     await pool.query('UPDATE products SET views = views + 1 WHERE id = ?', [id])
+    // Ghi lịch sử xem nếu user đã đăng nhập
+    if (req.user) {
+      await pool.query(`
+        INSERT INTO view_history (user_id, product_id, viewed_at)
+        VALUES (?, ?, NOW())
+        ON DUPLICATE KEY UPDATE viewed_at = NOW()
+      `, [req.user.id, id])
+    }
     return res.json({ success: true })
   } catch (err) {
     console.error('[productController] incrementView:', err)

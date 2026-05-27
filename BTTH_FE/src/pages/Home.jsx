@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { clearUser, updateUser, setLoading } from '~/redux/userSlice'
-import { authAPI, reviewAPI } from '~/apis'
+import { authAPI, reviewAPI, wishlistAPI } from '~/apis'
 import { toast } from 'react-toastify'
 
 const API_ROOT = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
@@ -47,6 +47,7 @@ const Home = () => {
   const dispatch = useDispatch()
   const { userInfo, loading } = useSelector((state) => state.user)
   const fileInputRef = useRef(null)
+  const [searchParams] = useSearchParams()
 
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({
@@ -60,6 +61,37 @@ const Home = () => {
   const [totalPoints, setTotalPoints] = useState(0)
   const [avatarPreview, setAvatarPreview] = useState(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [activeSection, setActiveSection] = useState(() => {
+    const tab = searchParams.get('tab')
+    return ['wishlist', 'history'].includes(tab) ? tab : 'info'
+  })
+  const [wishlistItems, setWishlistItems] = useState([])
+  const [historyItems, setHistoryItems] = useState([])
+  const [loadingList, setLoadingList] = useState(false)
+
+  // Fetch wishlist / history khi switch section
+  useEffect(() => {
+    if (!userInfo) return
+    let cancelled = false
+    const fetchData = async () => {
+      setLoadingList(true)
+      try {
+        if (activeSection === 'wishlist') {
+          const res = await wishlistAPI.getMyWishlistAPI()
+          if (!cancelled) setWishlistItems(res?.data || [])
+        } else if (activeSection === 'history') {
+          const res = await wishlistAPI.getViewHistoryAPI()
+          if (!cancelled) setHistoryItems(res?.data || [])
+        }
+      } catch {
+        // bỏ qua lỗi
+      } finally {
+        if (!cancelled) setLoadingList(false)
+      }
+    }
+    fetchData()
+    return () => { cancelled = true }
+  }, [activeSection, userInfo])
 
   // Fetch điểm thưởng khi mount
   useEffect(() => {
@@ -257,6 +289,25 @@ const Home = () => {
 
             {/* Quick links */}
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-4 space-y-1">
+              <button onClick={() => setActiveSection('info')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition ${
+                  activeSection === 'info' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'text-gray-700 hover:bg-indigo-50'
+                }`}>
+                <span className="text-lg">👤</span> Thông tin cá nhân
+              </button>
+              <button onClick={() => setActiveSection('wishlist')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition ${
+                  activeSection === 'wishlist' ? 'bg-red-500 text-white shadow-lg shadow-red-200' : 'text-gray-700 hover:bg-red-50'
+                }`}>
+                <span className="text-lg">❤️</span> Sản phẩm yêu thích
+              </button>
+              <button onClick={() => setActiveSection('history')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition ${
+                  activeSection === 'history' ? 'bg-purple-600 text-white shadow-lg shadow-purple-200' : 'text-gray-700 hover:bg-purple-50'
+                }`}>
+                <span className="text-lg">🕐</span> Đã xem gần đây
+              </button>
+              <div className="border-t border-gray-100 my-1"></div>
               <Link to="/orders" className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-indigo-50 text-sm font-bold text-gray-700 transition">
                 <span className="text-lg">📦</span> Đơn hàng của tôi
               </Link>
@@ -271,6 +322,9 @@ const Home = () => {
 
           {/* ── CỘT PHẢI ── */}
           <div className="lg:col-span-2">
+
+            {/* ── SECTION: Thông tin cá nhân ── */}
+            {activeSection === 'info' && (
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
               <div className="flex items-center justify-between mb-8">
                 <h3 className="text-xl font-black text-gray-900">Thông tin cá nhân</h3>
@@ -390,6 +444,81 @@ const Home = () => {
                 )}
               </form>
             </div>
+            )}
+
+            {/* ── SECTION: Wishlist ── */}
+            {activeSection === 'wishlist' && (
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
+              <h3 className="text-xl font-black text-gray-900 mb-6">❤️ Sản phẩm yêu thích</h3>
+              {loadingList ? (
+                <div className="flex justify-center py-16"><div className="w-10 h-10 border-4 border-red-400 border-t-transparent rounded-full animate-spin"></div></div>
+              ) : wishlistItems.length === 0 ? (
+                <div className="text-center py-16 text-gray-400">
+                  <div className="text-5xl mb-3">🤍</div>
+                  <p className="font-semibold">Chưa có sản phẩm yêu thích nào</p>
+                  <Link to="/" className="mt-4 inline-block text-sm text-indigo-600 font-bold hover:underline">Khám phá ngay →</Link>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {wishlistItems.map(item => (
+                    <Link to={`/product/${item.product_id || item.id}`} key={item.product_id || item.id}
+                      className="group rounded-2xl border border-gray-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+                      <div className="aspect-square bg-gray-50 overflow-hidden">
+                        <img src={item.image_url} alt={item.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={e => { e.target.src = 'https://via.placeholder.com/200x200?text=No+Image' }} />
+                      </div>
+                      <div className="p-3">
+                        <p className="text-xs font-bold text-gray-800 truncate">{item.name}</p>
+                        <p className="text-sm font-black text-indigo-600 mt-1">
+                          {Number(item.price).toLocaleString('vi-VN')}₫
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+            )}
+
+            {/* ── SECTION: History ── */}
+            {activeSection === 'history' && (
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
+              <h3 className="text-xl font-black text-gray-900 mb-6">🕐 Đã xem gần đây</h3>
+              {loadingList ? (
+                <div className="flex justify-center py-16"><div className="w-10 h-10 border-4 border-purple-400 border-t-transparent rounded-full animate-spin"></div></div>
+              ) : historyItems.length === 0 ? (
+                <div className="text-center py-16 text-gray-400">
+                  <div className="text-5xl mb-3">👀</div>
+                  <p className="font-semibold">Chưa có sản phẩm nào được xem</p>
+                  <Link to="/" className="mt-4 inline-block text-sm text-indigo-600 font-bold hover:underline">Khám phá ngay →</Link>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {historyItems.map(item => (
+                    <Link to={`/product/${item.product_id || item.id}`} key={item.product_id || item.id}
+                      className="group rounded-2xl border border-gray-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+                      <div className="aspect-square bg-gray-50 overflow-hidden">
+                        <img src={item.image_url} alt={item.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={e => { e.target.src = 'https://via.placeholder.com/200x200?text=No+Image' }} />
+                      </div>
+                      <div className="p-3">
+                        <p className="text-xs font-bold text-gray-800 truncate">{item.name}</p>
+                        <p className="text-sm font-black text-indigo-600 mt-1">
+                          {Number(item.price).toLocaleString('vi-VN')}₫
+                        </p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          🕐 {new Date(item.viewed_at).toLocaleDateString('vi-VN')}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+            )}
+
           </div>
 
         </div>

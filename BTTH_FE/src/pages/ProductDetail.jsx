@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { toast } from 'react-toastify'
 import { productAPI, cartAPI } from '~/apis/index'
-import { reviewAPI } from '~/apis/index'
+import { reviewAPI, wishlistAPI } from '~/apis/index'
 import { getProductImage } from '~/utils/shoeImages'
 import { setCartCount } from '~/redux/cartSlice'
 
@@ -131,6 +131,7 @@ const ProductDetail = () => {
   const navigate = useNavigate()
   const dispatch = useDispatch()
   const cartCount = useSelector(s => s.cart.count)
+  const userInfo = useSelector(s => s.user.userInfo)
 
   const [product, setProduct] = useState(null)
   const [similarProducts, setSimilarProducts] = useState([])
@@ -148,6 +149,8 @@ const ProductDetail = () => {
   const [reviewsList, setReviewsList] = useState([])
   const [reviewsAvg, setReviewsAvg] = useState(0)
   const [reviewsTotal, setReviewsTotal] = useState(0)
+  const [isWishlisted, setIsWishlisted] = useState(false)
+  const [wishlistLoading, setWishlistLoading] = useState(false)
 
   // ── Fetch sản phẩm theo ID ──────────────────────────────────────────────
   useEffect(() => {
@@ -175,6 +178,7 @@ const ProductDetail = () => {
         const p = res.data
         setProduct(p)
         setImages(getProductImages(p))
+        setIsWishlisted(p.is_wishlisted || false)
 
         // Lấy đánh giá thực tế từ DB
         try {
@@ -232,6 +236,20 @@ const ProductDetail = () => {
   const stockStatus = product.stock === 0 ? 'out' : product.stock <= 10 ? 'low' : 'in'
   const originalPrice = product.original_price || product.originalPrice || 0
   const categoryLabel = product.category_label || product.categoryLabel || product.category || ''
+
+  const handleToggleWishlist = async () => {
+    if (!userInfo) { toast.warning('Vui lòng đăng nhập để lưu yêu thích!'); return }
+    setWishlistLoading(true)
+    try {
+      const res = await wishlistAPI.toggleWishlistAPI(product.id)
+      setIsWishlisted(res.wishlisted)
+      toast.success(res.wishlisted ? '❤️ Đã thêm vào yêu thích!' : '💔 Đã bỏ khỏi yêu thích!')
+    } catch {
+      toast.error('Có lỗi xảy ra!')
+    } finally {
+      setWishlistLoading(false)
+    }
+  }
 
   const handleAddToCart = async () => {
     if (!selectedSize) { toast.warning('Vui lòng chọn size!'); return }
@@ -389,16 +407,20 @@ const ProductDetail = () => {
             {/* Tên sản phẩm */}
             <h1 className="text-3xl font-black text-gray-900 leading-tight">{product.name}</h1>
 
-            {/* Rating + Sold */}
-            <div className="flex items-center gap-4">
+            {/* Rating + Stats */}
+            <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-1.5">
-                <StarRating rating={product.rating} size="text-base" />
-                <span className="font-bold text-gray-800">{product.rating}</span>
-                <span className="text-gray-400 text-sm">({product.reviews} đánh giá)</span>
+                <StarRating rating={reviewsAvg > 0 ? reviewsAvg : product.rating} size="text-base" />
+                <span className="font-bold text-gray-800">{reviewsAvg > 0 ? Number(reviewsAvg).toFixed(1) : product.rating}</span>
+                <span className="text-gray-400 text-sm">({product.review_count ?? reviewsTotal} bình luận)</span>
               </div>
-              <div className="w-px h-4 bg-gray-300"></div>
-              <span className="text-sm text-gray-500">
-                <strong className="text-gray-700">{Number(product.sold).toLocaleString()}</strong> đã bán
+              <div className="w-px h-4 bg-gray-200"></div>
+              <span className="flex items-center gap-1 text-sm text-gray-500">
+                🛒 <strong className="text-gray-700">{Number(product.sold || 0).toLocaleString()}</strong> khách đã mua
+              </span>
+              <div className="w-px h-4 bg-gray-200"></div>
+              <span className="flex items-center gap-1 text-sm text-gray-500">
+                👁️ <strong className="text-gray-700">{Number(product.views || 0).toLocaleString()}</strong> lượt xem
               </span>
             </div>
 
@@ -523,10 +545,14 @@ const ProductDetail = () => {
                 ⚡ Mua ngay
               </button>
               <button
-                onClick={() => toast('❤️ Đã thêm vào yêu thích!')}
-                className="w-12 h-12 rounded-2xl border-2 border-gray-200 flex items-center justify-center hover:border-red-400 hover:bg-red-50 transition"
+                onClick={handleToggleWishlist}
+                disabled={wishlistLoading}
+                className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center transition active:scale-95 disabled:opacity-50 ${
+                  isWishlisted ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-red-400 hover:bg-red-50'
+                }`}
+                title={isWishlisted ? 'Bỏ yêu thích' : 'Thêm vào yêu thích'}
               >
-                🤍
+                {isWishlisted ? '❤️' : '🤍'}
               </button>
             </div>
 

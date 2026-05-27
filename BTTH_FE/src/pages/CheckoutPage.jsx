@@ -170,20 +170,50 @@ const CheckoutPage = () => {
   const totalQty = selectedItems.reduce((s, i) => s + i.quantity, 0)
 
   // ── Form validation ────────────────────────────────────────────────────
+  const validateField = (field, val) => {
+    const v = (val ?? '').trim()
+    if (field === 'name') {
+      if (!v) return 'Vui lòng nhập họ và tên'
+      if (v.length < 2) return 'Họ tên phải có ít nhất 2 ký tự'
+      if (v.length > 100) return 'Họ tên không được vượt quá 100 ký tự'
+      return ''
+    }
+    if (field === 'phone') {
+      if (!v) return 'Vui lòng nhập số điện thoại'
+      if (!/^\d+$/.test(v)) return 'Số điện thoại chỉ được chứa chữ số'
+      if (!v.startsWith('0')) return 'Số điện thoại phải bắt đầu bằng số 0'
+      if (v.length !== 10) return `Phải đủ 10 chữ số (hiện tại: ${v.length} chữ số)`
+      if (!/^0[3-9][0-9]{8}$/.test(v)) return 'Số điện thoại không hợp lệ (đầu số 03x-09x)'
+      return ''
+    }
+    if (field === 'address') {
+      if (!v) return 'Vui lòng nhập địa chỉ giao hàng'
+      if (v.length < 10) return 'Địa chỉ phải có ít nhất 10 ký tự (số nhà, tên đường...)'
+      return ''
+    }
+    if (field === 'city') {
+      if (!v) return 'Vui lòng chọn tỉnh / thành phố'
+      return ''
+    }
+    return ''
+  }
+
   const validate = () => {
+    const fields = ['name', 'phone', 'address', 'city']
     const e = {}
-    if (!form.name.trim()) e.name = 'Vui lòng nhập họ tên'
-    if (!form.phone.trim()) e.phone = 'Vui lòng nhập số điện thoại'
-    else if (!/^(0|\+84)[0-9]{9}$/.test(form.phone.trim())) e.phone = 'Số điện thoại không hợp lệ'
-    if (!form.address.trim()) e.address = 'Vui lòng nhập địa chỉ'
-    if (!form.city.trim()) e.city = 'Vui lòng chọn thành phố'
+    fields.forEach(f => {
+      const msg = validateField(f, form[f])
+      if (msg) e[f] = msg
+    })
     setErrors(e)
     return Object.keys(e).length === 0
   }
 
   const handleFormChange = (field, val) => {
     setForm(prev => ({ ...prev, [field]: val }))
-    if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }))
+    // Validate realtime ngay khi user gõ
+    const msg = validateField(field, val)
+    setErrors(prev => ({ ...prev, [field]: msg }))
   }
 
   // ── Step navigation ────────────────────────────────────────────────────

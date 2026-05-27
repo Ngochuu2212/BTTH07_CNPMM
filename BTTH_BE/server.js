@@ -9,6 +9,7 @@ const productRoutes = require('./src/routes/productRoutes')
 const cartRoutes    = require('./src/routes/cartRoutes')
 const orderRoutes   = require('./src/routes/orderRoutes')
 const reviewRoutes  = require('./src/routes/reviewRoutes')
+const wishlistRoutes = require('./src/routes/wishlistRoutes')
 
 const app = express()
 
@@ -42,6 +43,7 @@ app.use('/api/orders', orderRoutes)
 
 // Cấu hình URL cơ sở cho Reviews
 app.use('/api/reviews', reviewRoutes)
+app.use('/api/wishlist', wishlistRoutes)
 
 const PORT = process.env.PORT || 3000
 app.listen(PORT, () => {
