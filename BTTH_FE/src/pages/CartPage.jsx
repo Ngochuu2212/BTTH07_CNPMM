@@ -6,14 +6,12 @@ import { cartAPI } from '~/apis/index'
 import { setCartCount } from '~/redux/cartSlice'
 import { getProductImage } from '~/utils/shoeImages'
 
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fmt = price =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price)
 
 const SHIPPING_THRESHOLD = 500000
 const SHIPPING_FEE = 30000
 
-// ─── CONFIRM MODAL ───────────────────────────────────────────────────────────
 const ConfirmModal = ({ open, message, subMessage, confirmText = 'Xoá', onConfirm, onCancel }) => {
   if (!open) return null
   return (

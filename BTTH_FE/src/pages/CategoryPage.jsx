@@ -5,7 +5,6 @@ import { clearUser } from '~/redux/userSlice'
 import { toast } from 'react-toastify'
 import { productAPI } from '~/apis/index'
 
-// ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 8
 
 const CATEGORY_META = {
@@ -23,13 +22,11 @@ const SORT_OPTIONS = [
   { value: 'sold-desc', label: '🔥 Bán chạy nhất' }
 ]
 
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fmt = price =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price)
 
 const discountPct = (orig, sale) => Math.round(((orig - sale) / orig) * 100)
 
-// ─── REDUCER cho trạng thái danh sách sản phẩm ───────────────────────────────
 const initListState = {
   products: [],
   page: 2,
@@ -64,7 +61,6 @@ function listReducer(state, action) {
   }
 }
 
-// ─── SKELETON CARD ────────────────────────────────────────────────────────────
 const SkeletonCard = () => (
   <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-pulse">
     <div className="h-48 bg-gray-200" />
@@ -83,7 +79,6 @@ const SkeletonCard = () => (
   </div>
 )
 
-// ─── PRODUCT CARD ─────────────────────────────────────────────────────────────
 const ProductCard = ({ product }) => {
   const navigate = useNavigate()
   const [wishlist, setWishlist] = useState(false)
