@@ -69,7 +69,7 @@ const Home = () => {
   const [historyItems, setHistoryItems] = useState([])
   const [loadingList, setLoadingList] = useState(false)
 
-  // Fetch wishlist / history khi switch section
+  
   useEffect(() => {
     if (!userInfo) return
     let cancelled = false
