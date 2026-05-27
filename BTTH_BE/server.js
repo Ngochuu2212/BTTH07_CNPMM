@@ -10,6 +10,7 @@ const cartRoutes    = require('./src/routes/cartRoutes')
 const orderRoutes   = require('./src/routes/orderRoutes')
 const reviewRoutes  = require('./src/routes/reviewRoutes')
 const wishlistRoutes = require('./src/routes/wishlistRoutes')
+const couponRoutes  = require('./src/routes/couponRoutes')
 
 const app = express()
 
@@ -44,6 +45,7 @@ app.use('/api/orders', orderRoutes)
 // Cấu hình URL cơ sở cho Reviews
 app.use('/api/reviews', reviewRoutes)
 app.use('/api/wishlist', wishlistRoutes)
+app.use('/api/coupons', couponRoutes)
 
 const PORT = process.env.PORT || 3000
 app.listen(PORT, () => {

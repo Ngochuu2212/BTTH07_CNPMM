@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { toast } from 'react-toastify'
-import { cartAPI, orderAPI, reviewAPI } from '~/apis/index'
+import { cartAPI, orderAPI, reviewAPI, couponAPI } from '~/apis/index'
 import { setCartCount } from '~/redux/cartSlice'
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -115,6 +115,13 @@ const CheckoutPage = () => {
   const [showVnpayQR, setShowVnpayQR] = useState(false)
   const [vnpayCountdown, setVnpayCountdown] = useState(0)
 
+  // Coupon
+  const [couponInfo, setCouponInfo] = useState(null)   // validated coupon
+  const [couponDiscount, setCouponDiscount] = useState(0)
+  const [couponLoading, setCouponLoading] = useState(false)
+  const [couponError, setCouponError] = useState('')
+  const [availableCoupons, setAvailableCoupons] = useState([])
+
   // ── Fetch cart ─────────────────────────────────────────────────────────
   const fetchCart = useCallback(() => {
     cartAPI.getCartAPI()
@@ -153,6 +160,15 @@ const CheckoutPage = () => {
     return () => clearTimeout(t)
   }, [vnpayCountdown])
 
+  // Fetch danh sách mã ngay khi load trang (không cần đợi step 2)
+  useEffect(() => {
+    if (userInfo) {
+      couponAPI.getAvailableCouponsAPI()
+        .then(res => setAvailableCoupons(res.coupons || []))
+        .catch(() => {})
+    }
+  }, [userInfo])
+
   // ── Selected items ─────────────────────────────────────────────────────
   const selectedItems = selectedIds
     ? cartItems.filter(i => selectedIds.includes(i.id))
@@ -166,7 +182,11 @@ const CheckoutPage = () => {
   const maxPointDiscount = Math.floor(subtotal * 0.5)
   const pointsDiscount = usePoints ? Math.min(availablePoints * POINT_VALUE, maxPointDiscount) : 0
   const pointsUsed = usePoints ? Math.ceil(pointsDiscount / POINT_VALUE) : 0
-  const total = subtotal - discount - pointsDiscount + shipping
+  // Coupon: freeship giảm phí vận chuyển, các loại khác giảm tạm tính
+  const isFreeship = couponInfo?.discount_type === 'freeship'
+  const effectiveShipping = isFreeship ? Math.max(0, shipping - couponDiscount) : shipping
+  const couponSubDiscount = !isFreeship ? couponDiscount : 0
+  const total = subtotal - discount - pointsDiscount - couponSubDiscount + effectiveShipping
   const totalQty = selectedItems.reduce((s, i) => s + i.quantity, 0)
 
   // ── Form validation ────────────────────────────────────────────────────
@@ -217,6 +237,33 @@ const CheckoutPage = () => {
   }
 
   // ── Step navigation ────────────────────────────────────────────────────
+  const handleApplyCoupon = async (code) => {
+    if (!code) {
+      handleRemoveCoupon()
+      return
+    }
+    setCouponLoading(true)
+    setCouponError('')
+    try {
+      const res = await couponAPI.validateCouponAPI(code, subtotal)
+      setCouponInfo(res.coupon)
+      setCouponDiscount(res.discount_amount)
+      toast.success(res.message)
+    } catch (err) {
+      setCouponError(err?.response?.data?.message || 'Mã không hợp lệ')
+      setCouponInfo(null)
+      setCouponDiscount(0)
+    } finally {
+      setCouponLoading(false)
+    }
+  }
+
+  const handleRemoveCoupon = () => {
+    setCouponInfo(null)
+    setCouponDiscount(0)
+    setCouponError('')
+  }
+
   const goToStep2 = () => {
     if (!validate()) {
       toast.error('Vui lòng điền đầy đủ thông tin')
@@ -252,7 +299,8 @@ const CheckoutPage = () => {
           city: form.city.trim()
         },
         note: form.note.trim(),
-        ...(selectedIds ? { selected_item_ids: selectedIds } : {})
+        ...(selectedIds ? { selected_item_ids: selectedIds } : {}),
+        ...(couponInfo ? { coupon_code: couponInfo.code } : {})
       }
 
       const data = await orderAPI.createOrderAPI(payload)
@@ -643,6 +691,63 @@ const CheckoutPage = () => {
                     </div>
                   )}
 
+                  {/* ── MÃ GIẢM GIÁ ── */}
+                  <div className="bg-orange-50 border border-orange-200 rounded-2xl p-3 space-y-2">
+                    <p className="text-sm font-black text-orange-700">🎫 Mã giảm giá</p>
+
+                    {!couponInfo ? (
+                      <>
+                        <select
+                          defaultValue=""
+                          onChange={e => handleApplyCoupon(e.target.value)}
+                          disabled={couponLoading}
+                          className="w-full px-3 py-2.5 rounded-xl border border-orange-200 bg-white text-sm outline-none focus:ring-2 focus:ring-orange-300 disabled:opacity-50 cursor-pointer"
+                        >
+                          <option value="">
+                            {couponLoading ? 'Đang xử lý...' : availableCoupons.length === 0 ? 'Không có mã khả dụng' : '-- Chọn mã giảm giá --'}
+                          </option>
+                          {availableCoupons.map(c => {
+                            const typeLabel =
+                              c.discount_type === 'percent'
+                                ? `Giảm ${c.discount_value}%${c.max_discount ? ` (tối đa ${(c.max_discount/1000).toFixed(0)}k)` : ''}`
+                                : c.discount_type === 'fixed'
+                                  ? `Giảm ${(c.discount_value/1000).toFixed(0)}k`
+                                  : 'Miễn phí ship'
+                            const expiry = new Date(c.expires_at).toLocaleDateString('vi-VN')
+                            return (
+                              <option key={c.code} value={c.code}>
+                                {c.code} — {typeLabel} | Đơn từ {(c.min_order_amount/1000).toFixed(0)}k | HSD: {expiry}
+                              </option>
+                            )
+                          })}
+                        </select>
+                        {couponError && <p className="text-red-500 text-xs font-semibold">⚠️ {couponError}</p>}
+                      </>
+                    ) : (
+                      <div className="flex items-center justify-between bg-white border border-green-300 rounded-xl px-3 py-2.5">
+                        <div>
+                          <p className="text-xs font-black text-green-700">✅ {couponInfo.code} — {couponInfo.name}</p>
+                          <p className="text-[11px] text-green-500">Tiết kiệm {fmt(couponDiscount)}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRemoveCoupon}
+                          className="text-red-400 hover:text-red-600 text-lg font-black leading-none"
+                        >×</button>
+                      </div>
+                    )}
+
+                    {/* Dòng giảm giá từ coupon */}
+                    {couponDiscount > 0 && (
+                      <div className="flex justify-between text-orange-700 font-black text-sm border-t border-orange-200 pt-2">
+                        <span>
+                          {isFreeship ? '🚚 Miễn phí vận chuyển' : `🎫 Mã ${couponInfo?.code}`}
+                        </span>
+                        <span>-{fmt(couponDiscount)}</span>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Toggle dùng điểm */}
                   {availablePoints > 0 && (
                     <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 space-y-2">
@@ -673,8 +778,8 @@ const CheckoutPage = () => {
                   )}
                   <div className="flex justify-between text-gray-600">
                     <span>Vận chuyển</span>
-                    <span className={shipping === 0 ? 'text-green-600 font-semibold' : ''}>
-                      {shipping === 0 ? '🆓 Miễn phí' : fmt(shipping)}
+                    <span className={effectiveShipping === 0 ? 'text-green-600 font-semibold' : ''}>
+                      {effectiveShipping === 0 ? '🆓 Miễn phí' : fmt(effectiveShipping)}
                     </span>
                   </div>
                   <hr className="border-gray-100" />
@@ -685,7 +790,7 @@ const CheckoutPage = () => {
                 </div>
 
                 {/* Free ship progress */}
-                {shipping > 0 && (
+                {effectiveShipping > 0 && (
                   <div className="bg-blue-50 rounded-2xl p-3 space-y-1.5">
                     <p className="text-xs text-blue-700 font-semibold">
                       Mua thêm {fmt(SHIPPING_THRESHOLD - subtotal)} để được miễn phí vận chuyển 🚀

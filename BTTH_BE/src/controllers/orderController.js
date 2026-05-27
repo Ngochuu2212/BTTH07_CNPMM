@@ -134,7 +134,8 @@ exports.createOrder = async (req, res) => {
     payment_method = 'cod',
     shipping_address,
     note = '',
-    selected_item_ids // optional: array of cart_item ids; if omitted → use all
+    selected_item_ids,  // optional: array of cart_item ids; if omitted → use all
+    coupon_code = null  // mã giảm giá (promo_coupons)
   } = req.body
 
   if (!shipping_address || !shipping_address.name || !shipping_address.phone || !shipping_address.address) {
@@ -166,7 +167,30 @@ exports.createOrder = async (req, res) => {
     }
 
     // 2. Tính tổng tiền
-    const total_amount = cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0)
+    const subtotal = cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0)
+
+    // 2b. Áp dụng mã giảm giá nếu có
+    let couponDiscount = 0
+    let validCoupon = null
+    if (coupon_code) {
+      const [[coupon]] = await conn.query(
+        `SELECT * FROM promo_coupons WHERE code = ? AND is_active = 1 AND expires_at > NOW()
+           AND (usage_limit IS NULL OR used_count < usage_limit)`,
+        [coupon_code.toUpperCase().trim()]
+      )
+      if (coupon && subtotal >= coupon.min_order_amount) {
+        validCoupon = coupon
+        if (coupon.discount_type === 'percent') {
+          couponDiscount = Math.round(subtotal * coupon.discount_value / 100)
+          if (coupon.max_discount) couponDiscount = Math.min(couponDiscount, coupon.max_discount)
+        } else if (coupon.discount_type === 'fixed') {
+          couponDiscount = Math.min(coupon.discount_value, subtotal)
+        } else if (coupon.discount_type === 'freeship') {
+          couponDiscount = coupon.discount_value // giảm phí ship
+        }
+      }
+    }
+    const total_amount = Math.max(0, subtotal - (validCoupon?.discount_type !== 'freeship' ? couponDiscount : 0))
 
     // 3. Tạo đơn hàng
     const [orderResult] = await conn.query(
@@ -185,6 +209,11 @@ exports.createOrder = async (req, res) => {
         [orderId, i.product_id, i.product_name, i.product_brand || null,
           i.price, i.quantity, i.size || null]
       )
+    }
+
+    // 4b. Tăng used_count của coupon
+    if (validCoupon) {
+      await conn.query('UPDATE promo_coupons SET used_count = used_count + 1 WHERE id = ?', [validCoupon.id])
     }
 
     // 5. Xoá cart items đã order

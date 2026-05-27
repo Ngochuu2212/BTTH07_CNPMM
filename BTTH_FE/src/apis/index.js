@@ -274,6 +274,24 @@ const getViewHistoryAPI = async () => {
   return response.data
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// COUPON API
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Lấy danh sách mã đang hoạt động */
+const getAvailableCouponsAPI = async () => {
+  const response = await authorizedAxiosInstance.get(`${API_ROOT}/api/coupons`)
+  return response.data
+}
+
+/** Kiểm tra mã giảm giá + tính số tiền được giảm */
+const validateCouponAPI = async (code, subtotal) => {
+  const response = await authorizedAxiosInstance.post(`${API_ROOT}/api/coupons/validate`, { code, subtotal })
+  return response.data
+}
+
+export const couponAPI = { getAvailableCouponsAPI, validateCouponAPI }
+
 export const wishlistAPI = {
   getMyWishlistAPI,
   toggleWishlistAPI,
